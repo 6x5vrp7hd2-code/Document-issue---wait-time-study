@@ -2,11 +2,11 @@
 
 A one-month survey tool from Powertec Utilities. It measures the time from a competent person (CP) arriving to receive a safety document to the document being issued.
 
-- The AP office registers each approved request: the request number, the CP number and the document type. The request then appears on every AP's phone.
+- The AP office registers each approved request: the request number, the CP number, the size of the working party and the document type. The request then appears on every AP's phone.
 - When the CP arrives, the AP opens the request on his phone. The CP enters his CP number and presses Activate. The clock starts.
 - Once the document is issued, the CP enters his CP number and presses Complete, and the AP agrees with his PIN. The clock stops.
 - Times are stamped by the server, not the phone.
-- Results: median, average and longest wait; person-hours; estimated cost; what held it up; office against on site; document type.
+- Results: median, average and longest wait; person-hours (the wait multiplied by the CP plus his working party); estimated cost; what held it up; office against on site; document type.
 
 ## Files
 

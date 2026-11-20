@@ -15,7 +15,7 @@
 
 const REQ_SHEET = 'Requests';
 const AP_SHEET = 'APs';
-const REQ_HEAD = ['reqNo', 'cp', 'docType', 'status', 'registeredAt', 'activatedAt', 'activatedBy', 'location', 'issuedAt', 'issuedBy', 'cause', 'waitMinutes', 'example'];
+const REQ_HEAD = ['reqNo', 'cp', 'docType', 'workingParty', 'status', 'registeredAt', 'activatedAt', 'activatedBy', 'location', 'issuedAt', 'issuedBy', 'cause', 'waitMinutes', 'example'];
 const AP_HEAD = ['apNo', 'pinHash', 'setAt', 'example'];
 const CAUSES = ['none', 'keys', 'box', 'locks', 'doc', 'busy', 'isolation', 'other'];
 const LOCATIONS = ['office', 'site'];
@@ -68,13 +68,14 @@ function requireAp_(p) {
 
 /* ---------- actions ---------- */
 function register_(p) {
-  const reqNo = clean_(p.reqNo), cp = clean_(p.cp), docType = String(p.docType || '');
+  const reqNo = clean_(p.reqNo), cp = clean_(p.cp), docType = String(p.docType || ''), party = String(p.workingParty ?? '').trim();
   if (!reqNo || !cp) throw new Error('Enter the request number and the CP number.');
+  if (!/^\d{1,3}$/.test(party)) throw new Error('Enter the number of people in the working party, not counting the CP (0 if the CP is working alone).');
   if (DOC_TYPES.indexOf(docType) < 0) throw new Error('Choose a document type.');
   const sh = sheet_(REQ_SHEET, REQ_HEAD);
   if (findRow_(sh, reqNo) > 0) throw new Error('That request number is already registered.');
-  sh.appendRow([reqNo, cp, docType, 'registered', new Date(), '', '', '', '', '', '', '', false]);
-  return out_({ ok: true, message: reqNo + ' registered for ' + cp + '.' });
+  sh.appendRow([reqNo, cp, docType, Number(party), 'registered', new Date(), '', '', '', '', '', '', '', false]);
+  return out_({ ok: true, message: reqNo + ' registered for ' + cp + ' with a working party of ' + Number(party) + '.' });
 }
 
 function setPin_(p) {
@@ -137,14 +138,15 @@ function loadExamples_() {
   const causes = ['keys', 'keys', 'box', 'locks', 'none', 'busy', 'keys', 'doc', 'locks', 'keys', 'isolation', 'box'];
   const mins = [48, 35, 22, 41, 6, 18, 63, 27, 33, 52, 15, 29];
   const types = ['HV PTW', 'LV PTW', 'HV PTW', 'SFT', 'LV PTW', 'HV PTW', 'LV PTW', 'LOA', 'HV PTW', 'LV PTW', 'SFT', 'HV PTW'];
+  const party = [3, 2, 4, 1, 2, 5, 3, 0, 4, 2, 1, 3];
   const start = Date.now() - 3 * 86400000;
   for (let i = 0; i < 12; i++) {
     const id = 'EX-' + (101 + i);
     if (findRow_(req, id) > 0) continue;
     const act = new Date(start + i * 5 * 3600000), iss = new Date(act.getTime() + mins[i] * 60000);
-    req.appendRow([id, 'CP' + ('0' + ((i * 3) % 20 + 1)).slice(-2), types[i], 'issued', new Date(act.getTime() - 3600000), act, 'AP01', i % 3 === 0 ? 'site' : 'office', iss, 'AP01', causes[i], mins[i], true]);
+    req.appendRow([id, 'CP' + ('0' + ((i * 3) % 20 + 1)).slice(-2), types[i], party[i], 'issued', new Date(act.getTime() - 3600000), act, 'AP01', i % 3 === 0 ? 'site' : 'office', iss, 'AP01', causes[i], mins[i], true]);
   }
-  if (findRow_(req, 'EX-113') < 0) req.appendRow(['EX-113', 'CP05', 'HV PTW', 'registered', new Date(), '', '', '', '', '', '', '', true]);
+  if (findRow_(req, 'EX-113') < 0) req.appendRow(['EX-113', 'CP05', 'HV PTW', 3, 'registered', new Date(), '', '', '', '', '', '', '', true]);
   return out_({ ok: true, message: 'Example records loaded. Sign in as AP01 with PIN 1234 and try EX-113 with CP05. The AP agrees with PIN 1234.' });
 }
 

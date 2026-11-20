@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=3">
+<link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
 <div class="wrap">
@@ -118,6 +118,7 @@
           <div class="row">
             <label class="f">Request number<input id="of-req" placeholder="e.g. DR-0142" autocomplete="off" autocapitalize="characters"></label>
             <label class="f">CP number<input id="of-cp" placeholder="e.g. CP07" autocomplete="off" autocapitalize="characters"></label>
+            <label class="f">Working party (not counting the CP)<input id="of-party" type="number" min="0" max="999" inputmode="numeric" placeholder="e.g. 3"></label>
             <label class="f">Document<select id="of-type"><option>HV PTW</option><option>LV PTW</option><option>SFT</option><option>LOA</option><option>Other</option></select></label>
           </div>
           <div class="actions"><button class="primary" id="of-add">Register request</button></div>
@@ -157,10 +158,9 @@
       <div class="panel">
         <h2>Cost settings</h2>
         <div class="row">
-          <label class="f">People waiting per document<input id="rs-people" type="number" min="1" value="3"></label>
           <label class="f">Average hourly cost per person (£)<input id="rs-rate" type="number" min="0" value="45"></label>
         </div>
-        <p>People waiting is the CP plus their working party. Change both figures to suit the site.</p>
+        <p>People waiting on each document is the CP plus the working party entered when the request was registered. Set the hourly cost to suit the site.</p>
       </div>
       <div class="stats" id="rs-stats"></div>
       <div class="panel"><h2>What held up the issue</h2><div class="bars" id="rs-causes"></div></div>
@@ -169,14 +169,14 @@
       <div class="panel">
         <div class="actions spread"><h2>Every completed document</h2><button class="ghost" id="rs-copy">Copy as CSV</button></div>
         <div id="rs-copy-msg" class="msg" hidden></div>
-        <div class="tablebox"><table><thead><tr><th>Request</th><th>CP</th><th>Doc</th><th>Where</th><th>Activated</th><th>Issued</th><th>Wait</th><th>Held up by</th><th>AP</th></tr></thead><tbody id="rs-rows"></tbody></table></div>
+        <div class="tablebox"><table><thead><tr><th>Request</th><th>CP</th><th>Doc</th><th>Where</th><th>People</th><th>Activated</th><th>Issued</th><th>Wait</th><th>Held up by</th><th>AP</th></tr></thead><tbody id="rs-rows"></tbody></table></div>
       </div>
     </div>
   </section>
 
   <p class="foot">Times are stamped by the server, not the phone. No names are recorded: CP and AP numbers only.</p>
 </div>
-<script src="config.js?v=3"></script>
-<script src="app.js?v=3"></script>
+<script src="config.js?v=4"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

@@ -14,6 +14,8 @@
   const ms = v => v ? new Date(v).getTime() : 0;
   const fmtT = v => v ? new Date(v).toLocaleString('en-GB', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}) : '—';
   const fmtDur = m => { if (m == null || isNaN(m)) return '—'; const r = Math.round(m); return r < 60 ? `${r} min` : `${Math.floor(r/60)} h ${String(r%60).padStart(2,'0')} min`; };
+  const party = r => Math.max(0, parseInt(r.workingParty, 10) || 0);
+  const waiting = r => party(r) + 1; // the CP plus his working party
   const show = (el, text, kind) => { el.hidden = !text; el.textContent = text || ''; el.className = 'msg ' + (kind || 'info'); };
   const mkStore = s => ({ get(k){ try { return s().getItem(k); } catch(e){ return null; } }, set(k,v){ try { v ? s().setItem(k,v) : s().removeItem(k); } catch(e){} } });
   const session = mkStore(() => sessionStorage), keep = mkStore(() => localStorage);
@@ -51,12 +53,13 @@
     const causes = ['keys','keys','box','locks','none','busy','keys','doc','locks','keys','isolation','box'];
     const mins = [48,35,22,41,6,18,63,27,33,52,15,29];
     const types = ['HV PTW','LV PTW','HV PTW','SFT','LV PTW','HV PTW','LV PTW','LOA','HV PTW','LV PTW','SFT','HV PTW'];
+    const party = [3,2,4,1,2,5,3,0,4,2,1,3];
     const start = Date.now() - 3*86400000;
     for (let i = 0; i < 12; i++){
       const a = start + i*5*3600000, r = a + mins[i]*60000;
-      demo.req.push({reqNo:'EX-'+(101+i), cp:'CP'+String((i*3)%20+1).padStart(2,'0'), docType:types[i], status:'issued', registeredAt:new Date(a-3600000).toISOString(), activatedAt:new Date(a).toISOString(), activatedBy:'AP01', location:i%3===0?'site':'office', issuedAt:new Date(r).toISOString(), issuedBy:'AP01', cause:causes[i], waitMinutes:mins[i], example:true});
+      demo.req.push({reqNo:'EX-'+(101+i), cp:'CP'+String((i*3)%20+1).padStart(2,'0'), docType:types[i], workingParty:party[i], status:'issued', registeredAt:new Date(a-3600000).toISOString(), activatedAt:new Date(a).toISOString(), activatedBy:'AP01', location:i%3===0?'site':'office', issuedAt:new Date(r).toISOString(), issuedBy:'AP01', cause:causes[i], waitMinutes:mins[i], example:true});
     }
-    demo.req.push({reqNo:'EX-113', cp:'CP05', docType:'HV PTW', status:'registered', registeredAt:new Date().toISOString(), example:true});
+    demo.req.push({reqNo:'EX-113', cp:'CP05', docType:'HV PTW', workingParty:3, status:'registered', registeredAt:new Date().toISOString(), example:true});
   })();
   function demoCall(b){
     const office = () => { if (b.passcode !== 'demo') throw new Error('The office passcode is not correct.'); };
@@ -67,8 +70,9 @@
       case 'apLogin': { const a = demo.aps.find(x => x.apNo === norm(b.apNo)); if (!a || a.pin !== String(b.pin).trim()) throw new Error('The AP number and PIN do not match.'); return {ok:true, apNo:a.apNo, token:'demo-' + a.apNo + '-' + a.pin}; }
       case 'register': { office(); const reqNo = norm(b.reqNo), cp = norm(b.cp);
         if (!reqNo || !cp) throw new Error('Enter the request number and the CP number.');
+        if (!/^\d{1,3}$/.test(String(b.workingParty ?? '').trim())) throw new Error('Enter the number of people in the working party, not counting the CP (0 if the CP is working alone).');
         if (demo.req.some(r => r.reqNo === reqNo)) throw new Error('That request number is already registered.');
-        demo.req.push({reqNo, cp, docType:b.docType, status:'registered', registeredAt:new Date().toISOString()}); return {ok:true, message:`${reqNo} registered for ${cp}.`}; }
+        demo.req.push({reqNo, cp, docType:b.docType, workingParty:+b.workingParty, status:'registered', registeredAt:new Date().toISOString()}); return {ok:true, message:`${reqNo} registered for ${cp} with a working party of ${+b.workingParty}.`}; }
       case 'setPin': { office(); const apNo = norm(b.apNo), pin = String(b.pin||'').trim();
         if (!apNo || !/^\d{4,6}$/.test(pin)) throw new Error('Enter an AP number and a PIN of 4 to 6 digits.');
         const a = demo.aps.find(x => x.apNo === apNo); if (a) a.pin = pin; else demo.aps.push({apNo, pin}); return {ok:true, message:`PIN saved for ${apNo}.`}; }
@@ -132,7 +136,7 @@
     $('ap-card').hidden = !r; if (!r) return;
     $('ap-title').textContent = r.reqNo;
     $('ap-chip').className = 'chip ' + r.status; $('ap-chip').textContent = STATUS[r.status] || r.status;
-    $('ap-kv').innerHTML = `<dt>Document</dt><dd>${esc(r.docType)}</dd><dt>CP</dt><dd class="mono">${esc(r.cp)}</dd>` +
+    $('ap-kv').innerHTML = `<dt>Document</dt><dd>${esc(r.docType)}</dd><dt>CP</dt><dd class="mono">${esc(r.cp)}</dd><dt>Waiting</dt><dd>${waiting(r)} (CP + ${party(r)})</dd>` +
       (r.activatedAt ? `<dt>Activated</dt><dd>${fmtT(r.activatedAt)} · ${esc(LOC[r.location] || '')} · <span class="mono">${esc(r.activatedBy)}</span></dd>` : '') +
       (r.issuedAt ? `<dt>Issued</dt><dd>${fmtT(r.issuedAt)} · <span class="mono">${esc(r.issuedBy)}</span></dd>` : '');
     const done = r.status === 'issued', reg = r.status === 'registered';
@@ -192,7 +196,7 @@
     finally { btn.disabled = false; }
   }
   $('of-add').addEventListener('click', async () => {
-    if (await officeAction({action:'register', reqNo:norm($('of-req').value), cp:norm($('of-cp').value), docType:$('of-type').value}, $('of-msg'), $('of-add'))) { $('of-req').value = ''; $('of-cp').value = ''; $('of-req').focus(); }
+    if (await officeAction({action:'register', reqNo:norm($('of-req').value), cp:norm($('of-cp').value), docType:$('of-type').value, workingParty:$('of-party').value.trim()}, $('of-msg'), $('of-add'))) { $('of-req').value = ''; $('of-cp').value = ''; $('of-party').value = ''; $('of-req').focus(); }
   });
   $('ap-save').addEventListener('click', async () => {
     if (await officeAction({action:'setPin', apNo:norm($('ap-no').value), pin:$('ap-pin').value.trim()}, $('ap-msg2'), $('ap-save'))) { $('ap-no').value = ''; $('ap-pin').value = ''; }
@@ -201,19 +205,19 @@
   $('ex-clear').addEventListener('click', () => officeAction({action:'clearExamples'}, $('ex-msg'), $('ex-clear')));
   function renderOffice(){
     const open = requests.filter(r => r.status !== 'issued').sort((a,b) => ms(b.registeredAt) - ms(a.registeredAt));
-    $('of-list').innerHTML = open.length ? open.map(r => `<div class="item"><span><span class="mono">${esc(r.reqNo)}</span> · ${esc(r.docType)} · <span class="mono">${esc(r.cp)}</span>${r.example ? ' <span class="chip ex">Example</span>' : ''}</span><span class="chip ${r.status}">${STATUS[r.status]}</span></div>`).join('') : '<p class="muted">No open requests. Register one above.</p>';
+    $('of-list').innerHTML = open.length ? open.map(r => `<div class="item"><span><span class="mono">${esc(r.reqNo)}</span> · ${esc(r.docType)} · <span class="mono">${esc(r.cp)}</span> + ${party(r)}${r.example ? ' <span class="chip ex">Example</span>' : ''}</span><span class="chip ${r.status}">${STATUS[r.status]}</span></div>`).join('') : '<p class="muted">No open requests. Register one above.</p>';
     $('ap-list').innerHTML = aps.length ? aps.slice().sort((a,b) => a.apNo < b.apNo ? -1 : 1).map(a => `<div class="item"><span class="mono">${esc(a.apNo)}</span><span class="muted">${a.example ? 'Example PIN 1234' : 'PIN set'}</span></div>`).join('') : '<p class="muted">No PINs set yet.</p>';
   }
 
   /* ---------- results ---------- */
-  ['rs-people','rs-rate'].forEach(id => {
+  ['rs-rate'].forEach(id => {
     const saved = keep.get('pt-'+id); if (saved) $(id).value = saved;
     $(id).addEventListener('input', () => { keep.set('pt-'+id, $(id).value); renderResults(); });
   });
   function bars(el, groups){
     const rows = Object.entries(groups).sort((a,b) => b[1].mins - a[1].mins);
     const max = Math.max(1, ...rows.map(([,g]) => g.mins));
-    el.innerHTML = rows.length ? rows.map(([k,g]) => `<div class="bar"><span>${esc(k)}</span><small>${g.n} doc${g.n === 1 ? '' : 's'} · ${fmtDur(g.mins)} total · avg ${fmtDur(g.mins/g.n)}</small><div class="track"><div class="fill" style="width:${(g.mins/max*100).toFixed(1)}%"></div></div></div>`).join('') : '<p class="muted">No issued documents yet.</p>';
+    el.innerHTML = rows.length ? rows.map(([k,g]) => `<div class="bar"><span>${esc(k)}</span><small>${g.n} doc${g.n === 1 ? '' : 's'} · ${fmtDur(g.mins)} total · avg ${fmtDur(g.mins/g.n)} · ${g.ph.toLocaleString('en-GB', {maximumFractionDigits:1})} person-h</small><div class="track"><div class="fill" style="width:${(g.mins/max*100).toFixed(1)}%"></div></div></div>`).join('') : '<p class="muted">No issued documents yet.</p>';
   }
   function completed(){
     return requests.filter(r => r.status === 'issued' && r.activatedAt && r.issuedAt)
@@ -224,8 +228,8 @@
     const done = completed(), waits = done.map(r => r.mins).sort((a,b) => a-b), n = waits.length;
     const total = waits.reduce((s,x) => s+x, 0);
     const median = n ? (n % 2 ? waits[(n-1)/2] : (waits[n/2-1] + waits[n/2]) / 2) : null;
-    const people = Math.max(1, +$('rs-people').value || 1), rate = Math.max(0, +$('rs-rate').value || 0);
-    const personHours = total / 60 * people;
+    const rate = Math.max(0, +$('rs-rate').value || 0);
+    const personHours = done.reduce((s, r) => s + r.mins * waiting(r), 0) / 60;
     const anyEx = done.some(r => r.example);
     $('rs-stats').innerHTML = [
       [n, 'Documents measured' + (anyEx ? ' (includes examples)' : '')],
@@ -235,12 +239,12 @@
       [personHours.toLocaleString('en-GB', {maximumFractionDigits:1}) + ' h', 'Person-hours spent waiting'],
       ['£' + Math.round(personHours * rate).toLocaleString('en-GB'), 'Estimated cost of waiting']
     ].map(([b,s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join('');
-    const group = (key, map) => done.reduce((acc, r) => { const k = map ? (map[r[key]] || 'Not recorded') : (r[key] || 'Not recorded'); (acc[k] ||= {n:0, mins:0}); acc[k].n++; acc[k].mins += r.mins; return acc; }, {});
+    const group = (key, map) => done.reduce((acc, r) => { const k = map ? (map[r[key]] || 'Not recorded') : (r[key] || 'Not recorded'); (acc[k] ||= {n:0, mins:0}); acc[k].n++; acc[k].mins += r.mins; acc[k].ph = (acc[k].ph || 0) + r.mins * waiting(r) / 60; return acc; }, {});
     bars($('rs-causes'), group('cause', CAUSE)); bars($('rs-loc'), group('location', LOC)); bars($('rs-type'), group('docType'));
-    $('rs-rows').innerHTML = done.length ? done.map(r => `<tr><td class="mono">${esc(r.reqNo)}${r.example ? ' <span class="chip ex">Ex</span>' : ''}</td><td class="mono">${esc(r.cp)}</td><td>${esc(r.docType)}</td><td>${esc(LOC[r.location] || '')}</td><td>${fmtT(r.activatedAt)}</td><td>${fmtT(r.issuedAt)}</td><td>${fmtDur(r.mins)}</td><td>${esc(CAUSE[r.cause] || '')}</td><td class="mono">${esc(r.issuedBy)}</td></tr>`).join('') : '<tr><td colspan="9" class="muted">No issued documents yet.</td></tr>';
+    $('rs-rows').innerHTML = done.length ? done.map(r => `<tr><td class="mono">${esc(r.reqNo)}${r.example ? ' <span class="chip ex">Ex</span>' : ''}</td><td class="mono">${esc(r.cp)}</td><td>${esc(r.docType)}</td><td>${esc(LOC[r.location] || '')}</td><td>${waiting(r)}</td><td>${fmtT(r.activatedAt)}</td><td>${fmtT(r.issuedAt)}</td><td>${fmtDur(r.mins)}</td><td>${esc(CAUSE[r.cause] || '')}</td><td class="mono">${esc(r.issuedBy)}</td></tr>`).join('') : '<tr><td colspan="10" class="muted">No issued documents yet.</td></tr>';
   }
   $('rs-copy').addEventListener('click', () => {
-    const csv = ['request,cp,document,where,activated,issued,wait_minutes,held_up_by,ap,example'].concat(completed().map(r => [r.reqNo, r.cp, r.docType, LOC[r.location] || '', r.activatedAt, r.issuedAt, r.mins.toFixed(1), CAUSE[r.cause] || '', r.issuedBy, r.example ? 'yes' : 'no'].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))).join('\n');
+    const csv = ['request,cp,working_party,people_waiting,document,where,activated,issued,wait_minutes,person_hours,held_up_by,ap,example'].concat(completed().map(r => [r.reqNo, r.cp, party(r), waiting(r), r.docType, LOC[r.location] || '', r.activatedAt, r.issuedAt, r.mins.toFixed(1), (r.mins * waiting(r) / 60).toFixed(2), CAUSE[r.cause] || '', r.issuedBy, r.example ? 'yes' : 'no'].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))).join('\n');
     const m = $('rs-copy-msg');
     if (!navigator.clipboard) return show(m, 'Copying is not available in this browser. The full record is also in the Google Sheet.', 'err');
     navigator.clipboard.writeText(csv).then(() => show(m, 'Copied. Paste into Excel or Google Sheets.', 'ok'), () => show(m, 'Copying was blocked. The full record is also in the Google Sheet.', 'err'));

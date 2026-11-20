@@ -79,7 +79,7 @@ The CPs need nothing: no app, no link, no card. They only need their CP number.
 
 ## 8. Running the study
 
-**AP office:** when a document request is approved, register it on the page: the request number, the CP number and the document type. It then appears on every AP's phone.
+**AP office:** when a document request is approved, register it on the page: the request number, the CP number, the number of people in the working party (not counting the CP; enter 0 if he works alone) and the document type. It then appears on every AP's phone.
 
 **When the CP arrives to receive the document**, at the office or on site:
 
@@ -97,7 +97,7 @@ If the AP issues the document straight away, the CP activates it and completes i
 
 The CP starts the clock himself when he arrives, so the AP cannot start it late. The clock only stops when the CP completes and the AP agrees, so neither can stop it alone. The CP number must match the number registered against the request, and every time is taken from Google's clock.
 
-**Results:** the Results tab shows the median, average and longest wait, person-hours lost, estimated cost, what held it up, office against on site, and document type. **Copy as CSV** copies every issued record. The Google Sheet holds the full record at all times.
+**Results:** the Results tab shows the median, average and longest wait, person-hours lost, estimated cost, what held it up, office against on site, and document type. Person-hours are counted for everyone waiting: each document's wait multiplied by the CP plus his working party. **Copy as CSV** copies every issued record. The Google Sheet holds the full record at all times.
 
 ## Notes
 
