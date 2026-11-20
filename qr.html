@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CP QR Cards</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body>
+<div class="wrap">
+  <div class="no-print wrap">
+    <header class="top">
+      <img src="mark.png" alt="Powertec">
+      <div>
+        <div class="kicker">Powertec Utilities</div>
+        <h1>CP QR cards</h1>
+        <p>Each card opens the study page on the CP's phone with their CP number already filled in. Print, cut out and hand one to each CP.</p>
+      </div>
+    </header>
+    <div class="panel">
+      <div class="row">
+        <label class="f">CP number prefix<input id="prefix" value="CP"></label>
+        <label class="f">From<input id="from" type="number" min="1" value="1"></label>
+        <label class="f">To<input id="to" type="number" min="1" value="20"></label>
+      </div>
+      <div class="actions">
+        <button class="primary" id="make">Make cards</button>
+        <button class="ghost" onclick="window.print()">Print</button>
+        <a href="index.html#office" style="color:var(--muted);font-size:14px">Back to the AP office</a>
+      </div>
+    </div>
+  </div>
+  <div class="qr-sheet" id="sheet"></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(() => {
+  const base = new URL('index.html', location.href).href;
+  function make(){
+    const prefix = document.getElementById('prefix').value.trim().toUpperCase() || 'CP';
+    const from = Math.max(1, +document.getElementById('from').value || 1);
+    const to = Math.min(from + 199, Math.max(from, +document.getElementById('to').value || from));
+    const sheet = document.getElementById('sheet');
+    sheet.innerHTML = '';
+    if (typeof QRCode === 'undefined') { sheet.innerHTML = '<p class="msg err">The QR code library could not load. Check the internet connection and reload this page.</p>'; return; }
+    for (let i = from; i <= to; i++){
+      const cp = prefix + String(i).padStart(2, '0');
+      const url = base + '?cp=' + encodeURIComponent(cp) + '#cp';
+      const card = document.createElement('div'); card.className = 'qr-card';
+      const code = document.createElement('div');
+      card.innerHTML = '<b>Permit wait-time study</b>';
+      card.appendChild(code);
+      const label = document.createElement('div'); label.style.font = '700 18px Montserrat,sans-serif'; label.textContent = cp; card.appendChild(label);
+      const note = document.createElement('small'); note.textContent = 'Scan, enter the request number, and record ready and signed with the issuing AP.'; card.appendChild(note);
+      sheet.appendChild(card);
+      new QRCode(code, { text: url, width: 150, height: 150, correctLevel: QRCode.CorrectLevel.M });
+    }
+  }
+  document.getElementById('make').addEventListener('click', make);
+  make();
+})();
+</script>
+</body>
+</html>
