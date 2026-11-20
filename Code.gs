@@ -1,25 +1,28 @@
 /**
  * Powertec Permit Wait-Time Study: Google Apps Script back end.
  *
- * Paste this whole file into a Google Apps Script project that is attached to a Google Sheet
+ * Paste this whole file into a Google Apps Script project attached to a Google Sheet
  * (Sheet > Extensions > Apps Script), then follow SETUP.md.
  *
- * It stores every record in the Sheet, checks AP PINs on the server and stamps every time
- * with the server clock, so nobody can record a time by changing their phone's clock.
+ * Process:
+ *   1. The AP office registers each approved document request (request number, CP number, document).
+ *   2. The CP arrives. The AP opens the request on his phone. The CP enters his CP number
+ *      and activates it. The clock starts.
+ *   3. Once the document is issued, the CP enters his CP number and completes it, and the AP
+ *      agrees with his PIN. The clock stops.
+ * Every time is stamped by the server clock, not the phone.
  */
 
 const REQ_SHEET = 'Requests';
 const AP_SHEET = 'APs';
-const REQ_HEAD = ['reqNo', 'cp', 'docType', 'status', 'registeredAt', 'arrivalAt', 'arrivalAp', 'location', 'receiptAt', 'receiptAp', 'cause', 'waitMinutes', 'example'];
+const REQ_HEAD = ['reqNo', 'cp', 'docType', 'status', 'registeredAt', 'activatedAt', 'activatedBy', 'location', 'issuedAt', 'issuedBy', 'cause', 'waitMinutes', 'example'];
 const AP_HEAD = ['apNo', 'pinHash', 'setAt', 'example'];
 const CAUSES = ['none', 'keys', 'box', 'locks', 'doc', 'busy', 'isolation', 'other'];
 const LOCATIONS = ['office', 'site'];
 const DOC_TYPES = ['HV PTW', 'LV PTW', 'SFT', 'LOA', 'Other'];
 
 /* ---------- entry points ---------- */
-function doGet(e) {
-  return handle_((e && e.parameter) || {});
-}
+function doGet(e) { return handle_((e && e.parameter) || {}); }
 
 function doPost(e) {
   let body = {};
@@ -32,9 +35,11 @@ function handle_(p) {
     switch (p.action) {
       case 'list': return out_({ ok: true, requests: listRequests_(), aps: listAps_(), serverTime: new Date().toISOString() });
       case 'checkPasscode': requireOffice_(p); return out_({ ok: true });
+      case 'apLogin': return out_(apLogin_(p));
       case 'register': requireOffice_(p); return withLock_(() => register_(p));
       case 'setPin': requireOffice_(p); return withLock_(() => setPin_(p));
-      case 'confirm': return withLock_(() => confirm_(p));
+      case 'activate': return withLock_(() => step_(p, 'activate'));
+      case 'issue': return withLock_(() => step_(p, 'issue'));
       case 'clearExamples': requireOffice_(p); return withLock_(() => clearExamples_());
       case 'loadExamples': requireOffice_(p); return withLock_(() => loadExamples_());
       default: return out_({ ok: false, error: 'Unknown action.' });
@@ -42,6 +47,23 @@ function handle_(p) {
   } catch (err) {
     return out_({ ok: false, error: String(err.message || err) });
   }
+}
+
+/* ---------- AP sign-in ---------- */
+// The AP signs in once with his AP number and PIN. The phone keeps a token, never the PIN.
+// Resetting the PIN in the AP office makes the old token invalid.
+function apLogin_(p) {
+  const apNo = clean_(p.apNo), pin = String(p.pin || '').trim();
+  const ap = findAp_(apNo);
+  if (!ap || ap.pinHash !== hash_(apNo, pin)) throw new Error('The AP number and PIN do not match.');
+  return { ok: true, apNo: apNo, token: token_(apNo, ap.pinHash) };
+}
+
+function requireAp_(p) {
+  const apNo = clean_(p.apNo);
+  const ap = findAp_(apNo);
+  if (!ap || String(p.token || '') !== token_(apNo, ap.pinHash)) throw new Error('Sign in again with your AP number and PIN.');
+  return apNo;
 }
 
 /* ---------- actions ---------- */
@@ -66,40 +88,35 @@ function setPin_(p) {
   return out_({ ok: true, message: 'PIN saved for ' + apNo + '.' });
 }
 
-function confirm_(p) {
-  const reqNo = clean_(p.reqNo), cp = clean_(p.cp), apNo = clean_(p.apNo), pin = String(p.pin || '').trim();
-  if (p.together !== true) throw new Error('Both the CP and the AP must confirm they are together.');
+function step_(p, kind) {
+  const apNo = requireAp_(p);
+  const reqNo = clean_(p.reqNo), cp = clean_(p.cp);
   const sh = sheet_(REQ_SHEET, REQ_HEAD);
   const row = findRow_(sh, reqNo);
   if (row < 0) throw new Error('No approved request with that number.');
   const r = rowObject_(sh, row, REQ_HEAD);
-  if (r.cp !== cp) throw new Error('That CP number does not match this request.');
-  const aps = sheet_(AP_SHEET, AP_HEAD);
-  const apRow = findRow_(aps, apNo);
-  if (apRow < 0) throw new Error('That AP number has no PIN set. The AP office sets PINs.');
-  const ap = rowObject_(aps, apRow, AP_HEAD);
-  if (ap.pinHash !== hash_(apNo, pin)) throw new Error('The AP number and PIN do not match.');
+  if (!cp) throw new Error('The CP must enter his CP number.');
+  if (String(r.cp).toUpperCase() !== cp) throw new Error('That CP number does not match this request.');
   const now = new Date();
   const col = name => REQ_HEAD.indexOf(name) + 1;
-  if (r.status === 'registered') {
-    const loc = LOCATIONS.indexOf(p.location) >= 0 ? p.location : 'office';
-    sh.getRange(row, col('status')).setValue('arrived');
-    sh.getRange(row, col('arrivalAt')).setValue(now);
-    sh.getRange(row, col('arrivalAp')).setValue(apNo);
-    sh.getRange(row, col('location')).setValue(loc);
-    return out_({ ok: true, message: 'Ready to receive recorded.' });
+  if (kind === 'activate') {
+    if (r.status !== 'registered') throw new Error(r.status === 'active' ? 'This document is already activated.' : 'This document has already been issued.');
+    sh.getRange(row, col('status')).setValue('active');
+    sh.getRange(row, col('activatedAt')).setValue(now);
+    sh.getRange(row, col('activatedBy')).setValue(apNo);
+    sh.getRange(row, col('location')).setValue(LOCATIONS.indexOf(p.location) >= 0 ? p.location : 'office');
+    return out_({ ok: true, message: reqNo + ' activated. The clock has started.' });
   }
-  if (r.status === 'arrived') {
-    const cause = CAUSES.indexOf(p.cause) >= 0 ? p.cause : 'other';
-    const wait = (now.getTime() - new Date(r.arrivalAt).getTime()) / 60000;
-    sh.getRange(row, col('status')).setValue('received');
-    sh.getRange(row, col('receiptAt')).setValue(now);
-    sh.getRange(row, col('receiptAp')).setValue(apNo);
-    sh.getRange(row, col('cause')).setValue(cause);
-    sh.getRange(row, col('waitMinutes')).setValue(Math.round(wait * 10) / 10);
-    return out_({ ok: true, message: 'Document signed recorded.' });
-  }
-  throw new Error('This request has already been completed.');
+  if (r.status !== 'active') throw new Error(r.status === 'registered' ? 'Activate this document first.' : 'This document has already been issued.');
+  const ap = findAp_(apNo);
+  if (!ap || ap.pinHash !== hash_(apNo, String(p.pin || '').trim())) throw new Error('Your PIN is not correct. The AP must agree with his PIN.');
+  const wait = (now.getTime() - new Date(r.activatedAt).getTime()) / 60000;
+  sh.getRange(row, col('status')).setValue('issued');
+  sh.getRange(row, col('issuedAt')).setValue(now);
+  sh.getRange(row, col('issuedBy')).setValue(apNo);
+  sh.getRange(row, col('cause')).setValue(CAUSES.indexOf(p.cause) >= 0 ? p.cause : 'none');
+  sh.getRange(row, col('waitMinutes')).setValue(Math.round(wait * 10) / 10);
+  return out_({ ok: true, message: reqNo + ' issued. The clock has stopped.' });
 }
 
 function clearExamples_() {
@@ -124,17 +141,16 @@ function loadExamples_() {
   for (let i = 0; i < 12; i++) {
     const id = 'EX-' + (101 + i);
     if (findRow_(req, id) > 0) continue;
-    const arr = new Date(start + i * 5 * 3600000), rec = new Date(arr.getTime() + mins[i] * 60000);
-    req.appendRow([id, 'CP' + ('0' + ((i * 3) % 20 + 1)).slice(-2), types[i], 'received', new Date(arr.getTime() - 3600000), arr, 'AP01', i % 3 === 0 ? 'site' : 'office', rec, 'AP01', causes[i], mins[i], true]);
+    const act = new Date(start + i * 5 * 3600000), iss = new Date(act.getTime() + mins[i] * 60000);
+    req.appendRow([id, 'CP' + ('0' + ((i * 3) % 20 + 1)).slice(-2), types[i], 'issued', new Date(act.getTime() - 3600000), act, 'AP01', i % 3 === 0 ? 'site' : 'office', iss, 'AP01', causes[i], mins[i], true]);
   }
   if (findRow_(req, 'EX-113') < 0) req.appendRow(['EX-113', 'CP05', 'HV PTW', 'registered', new Date(), '', '', '', '', '', '', '', true]);
-  return out_({ ok: true, message: 'Example records loaded. Try EX-113 with CP05, AP01 and PIN 1234.' });
+  return out_({ ok: true, message: 'Example records loaded. Sign in as AP01 with PIN 1234 and try EX-113 with CP05. The AP agrees with PIN 1234.' });
 }
 
 /* ---------- reads ---------- */
 function listRequests_() {
-  const sh = sheet_(REQ_SHEET, REQ_HEAD);
-  const values = sh.getDataRange().getValues();
+  const values = sheet_(REQ_SHEET, REQ_HEAD).getDataRange().getValues();
   return values.slice(1).filter(v => v[0] !== '').map(v => {
     const o = {};
     REQ_HEAD.forEach((h, i) => { o[h] = v[i] instanceof Date ? v[i].toISOString() : v[i]; });
@@ -144,8 +160,7 @@ function listRequests_() {
 }
 
 function listAps_() {
-  const sh = sheet_(AP_SHEET, AP_HEAD);
-  return sh.getDataRange().getValues().slice(1).filter(v => v[0] !== '').map(v => ({ apNo: v[0], example: v[3] === true || v[3] === 'TRUE' }));
+  return sheet_(AP_SHEET, AP_HEAD).getDataRange().getValues().slice(1).filter(v => v[0] !== '').map(v => ({ apNo: v[0], example: v[3] === true || v[3] === 'TRUE' }));
 }
 
 /* ---------- helpers ---------- */
@@ -155,10 +170,19 @@ function requireOffice_(p) {
   if (String(p.passcode || '') !== code) throw new Error('The office passcode is not correct.');
 }
 
-function hash_(apNo, pin) {
-  const salt = PropertiesService.getScriptProperties().getProperty('PIN_SALT') || 'powertec';
-  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + '|' + apNo + '|' + pin);
+function sha_(text) {
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text);
   return bytes.map(b => ('0' + (b & 0xff).toString(16)).slice(-2)).join('');
+}
+function salt_() { return PropertiesService.getScriptProperties().getProperty('PIN_SALT') || 'powertec'; }
+function hash_(apNo, pin) { return sha_(salt_() + '|' + apNo + '|' + pin); }
+function token_(apNo, pinHash) { return sha_('token|' + salt_() + '|' + apNo + '|' + pinHash); }
+
+function findAp_(apNo) {
+  if (!apNo) return null;
+  const sh = sheet_(AP_SHEET, AP_HEAD);
+  const row = findRow_(sh, apNo);
+  return row > 0 ? rowObject_(sh, row, AP_HEAD) : null;
 }
 
 function sheet_(name, head) {

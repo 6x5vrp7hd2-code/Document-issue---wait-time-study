@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Permit Wait-Time Study</title>
-<meta name="description" content="Records the time from a CP being ready to receive a safety document to the document being signed.">
+<meta name="description" content="Records the time from a CP arriving to receive a safety document to the document being issued.">
 <meta name="theme-color" content="#0E1318">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="mark.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=1">
+<link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
 <div class="wrap">
@@ -20,64 +20,82 @@
     <div>
       <div class="kicker">Powertec Utilities<span id="site-name"></span></div>
       <h1>Permit wait-time study</h1>
-      <p>Measures the time from a CP being ready to receive a safety document to the document being signed. Both times are confirmed jointly by the CP and the issuing AP.</p>
+      <p>Measures the time from a CP arriving to receive a safety document to the document being issued. The CP activates the document on the AP's phone when he arrives and completes it once it is issued; the AP agrees with his PIN.</p>
     </div>
   </header>
 
   <nav class="tabs" aria-label="Views">
-    <a href="#cp" data-view="cp">CP: record times</a>
+    <a href="#ap" data-view="ap">AP: issue</a>
     <a href="#office" data-view="office">AP office</a>
     <a href="#results" data-view="results">Results</a>
   </nav>
 
   <div id="status" class="msg info">Loading the study record…</div>
 
-  <!-- CP -->
-  <section id="view-cp" class="view" hidden>
-    <div class="panel">
-      <h2>Open your document request</h2>
-      <p>Enter the request number given by the AP office and your CP number.</p>
+  <!-- AP: ISSUE -->
+  <section id="view-ap" class="view" hidden>
+    <div class="panel" id="ap-login">
+      <h2>AP sign in</h2>
+      <p>Sign in once on your phone. Your PIN is set by the AP office.</p>
       <div class="row">
-        <label class="f">Request number<input id="cp-req" placeholder="e.g. DR-0142" autocomplete="off" autocapitalize="characters"></label>
-        <label class="f">Your CP number<input id="cp-no" placeholder="e.g. CP07" autocomplete="off" autocapitalize="characters"></label>
+        <label class="f">AP number<input id="ap-login-no" placeholder="e.g. AP03" autocomplete="username" autocapitalize="characters"></label>
+        <label class="f">PIN<input id="ap-login-pin" type="password" inputmode="numeric" autocomplete="current-password"></label>
       </div>
-      <div class="actions"><button class="primary" id="cp-open">Open request</button></div>
-      <div id="cp-open-msg" class="msg err" hidden></div>
+      <div class="actions"><button class="primary" id="ap-login-btn">Sign in</button></div>
+      <div id="ap-login-msg" class="msg err" hidden></div>
     </div>
 
-    <div class="panel card" id="cp-card" hidden>
-      <div class="actions spread"><h2 id="cp-title"></h2><span id="cp-chip" class="chip"></span></div>
-      <dl class="kv" id="cp-kv"></dl>
-
-      <div id="cp-step" class="card">
-        <h2 id="cp-step-title"></h2>
-        <p id="cp-step-help"></p>
-        <div class="row">
-          <label class="f" id="cp-loc-wrap">Where<select id="cp-loc"><option value="office">At the AP office</option><option value="site">On site, at the point of work</option></select></label>
-          <label class="f" id="cp-cause-wrap" hidden>What held up the issue?<select id="cp-cause">
-            <option value="none">Nothing, issued straight away</option>
-            <option value="keys">AP locating keys</option>
-            <option value="box">Lockout box not available</option>
-            <option value="locks">Locks not where expected</option>
-            <option value="doc">Document not prepared</option>
-            <option value="busy">AP issuing another document</option>
-            <option value="isolation">Isolation not yet complete</option>
-            <option value="other">Other</option>
-          </select></label>
-        </div>
-        <div class="row">
-          <label class="f">Issuing AP number<input id="cp-ap" placeholder="e.g. AP03" autocomplete="off" autocapitalize="characters"></label>
-          <label class="f">AP PIN<input id="cp-pin" type="password" inputmode="numeric" autocomplete="off" placeholder="Entered by the AP"></label>
-        </div>
-        <label class="check"><input type="checkbox" id="cp-agree"><span id="cp-agree-text"></span></label>
-        <div class="actions"><button class="primary" id="cp-confirm">Confirm</button></div>
-        <div id="cp-msg" class="msg" hidden></div>
+    <div id="ap-main" class="wrap" hidden>
+      <div class="panel">
+        <div class="actions spread"><h2>Open a document</h2><span class="muted">Signed in as <span class="mono" id="ap-me"></span> · <a href="#" id="ap-out" style="color:var(--muted)">Sign out</a></span></div>
+        <p>Enter the request number the CP gives you.</p>
+        <div class="row"><label class="f">Request number<input id="ap-req" placeholder="e.g. DR-0142" autocomplete="off" autocapitalize="characters"></label></div>
+        <div class="actions"><button class="primary" id="ap-open">Open</button></div>
+        <div id="ap-open-msg" class="msg err" hidden></div>
       </div>
 
-      <div id="cp-done" class="card" hidden>
-        <p class="muted">Time from ready to signed</p>
-        <div class="big" id="cp-wait"></div>
-        <p id="cp-done-note"></p>
+      <div class="panel card" id="ap-card" hidden>
+        <div class="actions spread"><h2 id="ap-title"></h2><span id="ap-chip" class="chip"></span></div>
+        <dl class="kv" id="ap-kv"></dl>
+
+        <div id="ap-step" class="card">
+          <div id="ap-cp-wrap" class="card">
+            <h2 id="ap-cp-title"></h2>
+            <p id="ap-cp-help"></p>
+            <div class="row">
+              <label class="f">CP number<input id="ap-cp" placeholder="e.g. CP07" autocomplete="off" autocapitalize="characters"></label>
+              <label class="f" id="ap-loc-wrap">Where<select id="ap-loc"><option value="office">At the AP office</option><option value="site">On site</option></select></label>
+              <label class="f" id="ap-cause-wrap" hidden>What held it up (optional)<select id="ap-cause">
+                <option value="none">Nothing, issued straight away</option>
+                <option value="keys">Locating keys</option>
+                <option value="box">Lockout box not available</option>
+                <option value="locks">Locks not where expected</option>
+                <option value="doc">Document not prepared</option>
+                <option value="busy">Issuing another document</option>
+                <option value="isolation">Isolation not yet complete</option>
+                <option value="other">Other</option>
+              </select></label>
+            </div>
+            <div class="actions"><button class="primary" id="ap-cp-ok"></button></div>
+          </div>
+          <div id="ap-agree-wrap" class="card" hidden>
+            <h2>AP: agree</h2>
+            <p>The CP has marked this document as issued. Enter your PIN to agree. The clock stops when you agree.</p>
+            <div class="row"><label class="f">Your PIN<input id="ap-agree-pin" type="password" inputmode="numeric" autocomplete="off"></label></div>
+            <div class="actions"><button class="primary" id="ap-agree-ok">Agree</button><button class="ghost" id="ap-agree-back">Back</button></div>
+          </div>
+          <div id="ap-msg" class="msg" hidden></div>
+        </div>
+
+        <div id="ap-done" class="card" hidden>
+          <p class="muted">Time from activated to issued</p>
+          <div class="big" id="ap-wait"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Activated, waiting to be issued</h2>
+        <div class="list" id="ap-active"></div>
       </div>
     </div>
   </section>
@@ -96,7 +114,7 @@
       <div class="wrap">
         <div class="panel">
           <h2>Register an approved request</h2>
-          <p>When the AP office approves a document request, register it here so the CP can open it by its number.</p>
+          <p>When the AP office approves a document request, register it here. It then appears on every AP's phone.</p>
           <div class="row">
             <label class="f">Request number<input id="of-req" placeholder="e.g. DR-0142" autocomplete="off" autocapitalize="characters"></label>
             <label class="f">CP number<input id="of-cp" placeholder="e.g. CP07" autocomplete="off" autocapitalize="characters"></label>
@@ -113,20 +131,20 @@
 
         <div class="panel">
           <h2>AP PINs</h2>
-          <p>Each issuing AP sets a PIN and enters it on the CP's phone to confirm arrival and receipt, so neither time can be recorded without both people present.</p>
+          <p>Each issuing AP signs in on his own phone with his AP number and PIN.</p>
           <div class="row">
             <label class="f">AP number<input id="ap-no" placeholder="e.g. AP03" autocomplete="off" autocapitalize="characters"></label>
             <label class="f">New PIN (4 to 6 digits)<input id="ap-pin" type="password" inputmode="numeric" autocomplete="new-password"></label>
           </div>
           <div class="actions"><button class="ghost" id="ap-save">Save PIN</button></div>
-          <div id="ap-msg" class="msg" hidden></div>
+          <div id="ap-msg2" class="msg" hidden></div>
           <div class="list" id="ap-list"></div>
         </div>
 
         <div class="panel">
           <h2>Example records</h2>
           <p>Load example records to show how the results look, and remove them before the real study starts.</p>
-          <div class="actions"><button class="ghost" id="ex-load">Load examples</button><button class="ghost" id="ex-clear">Remove examples</button><a class="ghost" href="qr.html" style="color:var(--text);text-decoration:none;border:1px solid var(--line);border-radius:4px;padding:11px 16px;font:700 13px var(--head)">Print CP QR cards</a></div>
+          <div class="actions"><button class="ghost" id="ex-load">Load examples</button><button class="ghost" id="ex-clear">Remove examples</button></div>
           <div id="ex-msg" class="msg" hidden></div>
         </div>
       </div>
@@ -151,14 +169,14 @@
       <div class="panel">
         <div class="actions spread"><h2>Every completed document</h2><button class="ghost" id="rs-copy">Copy as CSV</button></div>
         <div id="rs-copy-msg" class="msg" hidden></div>
-        <div class="tablebox"><table><thead><tr><th>Request</th><th>CP</th><th>Doc</th><th>Where</th><th>Ready</th><th>Signed</th><th>Wait</th><th>Held up by</th><th>AP</th></tr></thead><tbody id="rs-rows"></tbody></table></div>
+        <div class="tablebox"><table><thead><tr><th>Request</th><th>CP</th><th>Doc</th><th>Where</th><th>Activated</th><th>Issued</th><th>Wait</th><th>Held up by</th><th>AP</th></tr></thead><tbody id="rs-rows"></tbody></table></div>
       </div>
     </div>
   </section>
 
-  <p class="foot">Times are stamped by the server when both the CP and the AP confirm. No names are recorded: CP and AP numbers only.</p>
+  <p class="foot">Times are stamped by the server, not the phone. No names are recorded: CP and AP numbers only.</p>
 </div>
-<script src="config.js?v=1"></script>
-<script src="app.js?v=1"></script>
+<script src="config.js?v=3"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

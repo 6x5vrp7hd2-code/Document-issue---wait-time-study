@@ -41,8 +41,8 @@ button:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
 .mono{font-family:var(--mono);font-size:13px}
 .chip{display:inline-block;font:700 11px var(--head);letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:3px;background:rgba(255,255,255,.07);color:var(--muted)}
 .chip.registered{color:var(--warn);background:rgba(242,193,78,.12)}
-.chip.arrived{color:var(--accent-ink);background:rgba(245,130,32,.14)}
-.chip.received{color:var(--good);background:rgba(95,201,139,.12)}
+.chip.active{color:var(--accent-ink);background:rgba(245,130,32,.14)}
+.chip.issued{color:var(--good);background:rgba(95,201,139,.12)}
 .chip.ex{color:#9DB3C9;background:rgba(157,179,201,.12)}
 .card{display:grid;gap:8px}
 .kv{display:grid;grid-template-columns:110px minmax(0,1fr);gap:6px 12px;font-size:14px;margin:0}
@@ -64,15 +64,9 @@ td{padding:8px;border-top:1px solid rgba(255,255,255,.05);white-space:nowrap}
 .list{display:grid;gap:6px}
 .item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;background:var(--fade);font-size:14px;flex-wrap:wrap}
 .muted{color:var(--muted)}
+button.item.pick{width:100%;border:0;border-radius:0;color:var(--text);font:500 14px var(--head);letter-spacing:0;text-align:left;cursor:pointer}
+button.item.pick:hover{background:linear-gradient(90deg,#24313F 0%,#1C2733 50%,rgba(20,28,37,.4) 100%)}
 .check{display:flex;gap:10px;align-items:flex-start;font-size:14px}
 .check input{width:auto;margin-top:4px}
 .foot{color:var(--muted);font-size:12.5px}
-.qr-sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
-.qr-card{background:#fff;color:#111;padding:16px;display:grid;gap:8px;justify-items:center;text-align:center;border-radius:6px}
-.qr-card b{font-size:15px} .qr-card small{font-size:11px;color:#444}
 [hidden]{display:none!important}
-@media print{
-  body{background:#fff;color:#111;padding:0}
-  .no-print{display:none!important}
-  .qr-card{break-inside:avoid;border:1px solid #ccc}
-}

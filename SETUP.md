@@ -2,7 +2,7 @@
 
 The study has two parts:
 
-- **The page** (index.html, app.js, styles.css, config.js, qr.html and the two images). This is hosted free on GitHub Pages.
+- **The page** (index.html, app.js, styles.css, config.js and the two images). This is hosted free on GitHub Pages.
 - **The record** is a Google Sheet. A short Google Apps Script (Code.gs) receives every confirmation, checks the AP PIN and stamps the time with Google's clock. Nobody can record a time early by changing their phone's clock.
 
 Allow about 20 minutes. Steps 1 to 4 are easier on a computer than on a phone.
@@ -38,7 +38,7 @@ Allow about 20 minutes. Steps 1 to 4 are easier on a computer than on a phone.
 1. Click **Deploy > New deployment**.
 2. Next to "Select type", click the gear and choose **Web app**.
 3. Set **Execute as** to **Me**.
-4. Set **Who has access** to **Anyone**. CPs use the page without signing in to Google. The record is still protected: only the office passcode can register requests, and only a correct AP PIN can record a time.
+4. Set **Who has access** to **Anyone**. APs use the page without signing in to Google. The record is still protected: only the office passcode can register requests and set PINs, and only a signed-in AP with the matching CP number can record a time.
 5. Click **Deploy** and approve the permissions Google asks for. Google may say the app is unverified; choose **Advanced > Go to (project name)**, since this is your own script.
 6. Copy the **Web app URL**. It ends in `/exec`.
 
@@ -57,7 +57,7 @@ window.PT_CONFIG = {
 };
 ```
 
-While `apiUrl` is empty, the page runs in demonstration mode: example data, nothing saved. Office passcode `demo`; try request `EX-113` with `CP05`, `AP01`, PIN `1234`.
+While `apiUrl` is empty, the page runs in demonstration mode: example data, nothing saved. Sign in as `AP01` with PIN `1234`, open request `EX-113`, and use CP number `CP05`. The office passcode is `demo`.
 
 ## 6. Put the page on GitHub Pages
 
@@ -72,26 +72,36 @@ While `apiUrl` is empty, the page runs in demonstration mode: example data, noth
 
 1. Open the page, choose **AP office** and enter the office passcode.
 2. Optional: click **Load examples** to see how the results look. Click **Remove examples** before the real study starts.
-3. Under **AP PINs**, each issuing AP sets their own AP number and PIN.
-4. Click **Print CP QR cards**, set the CP number range and print. Give each CP their card. Scanning it opens the page with their CP number filled in.
+3. Under **AP PINs**, set an AP number and PIN for each issuing AP.
+4. Send the page link to every issuing AP. Each AP opens it on his own phone, chooses **AP: issue** and signs in once with his AP number and PIN. The phone stays signed in.
+
+The CPs need nothing: no app, no link, no card. They only need their CP number.
 
 ## 8. Running the study
 
-**AP office:** when a document request is approved, register it on the page: the request number, the CP number and the document type.
+**AP office:** when a document request is approved, register it on the page: the request number, the CP number and the document type. It then appears on every AP's phone.
 
-**CP and AP together:**
+**When the CP arrives to receive the document**, at the office or on site:
 
-1. The CP opens the request on their phone with the request number.
-2. **Ready to receive.** When the CP is with the issuing AP and ready to receive the document, at the office or on site, the AP enters their AP number and PIN on the CP's phone. Both tick the box to confirm they are together, then press confirm.
-3. **Document signed.** When the document is signed, the AP enters their number and PIN again. The CP chooses what held up the issue, and they confirm.
+1. The CP gives the AP the request number.
+2. The AP opens it on his phone and hands the phone to the CP.
+3. The CP enters his CP number, chooses office or on site, and presses **Activate**. **The clock starts.**
 
-The server records both times. A CP cannot record "ready" without the AP's PIN, so nobody can record arrival before they are there.
+**Once the document has been issued:**
 
-**Results:** the Results tab shows the median, average and longest wait, person-hours lost, estimated cost, causes, office against on site, and document type. **Copy as CSV** copies every completed record. The Google Sheet holds the full record at all times.
+1. The AP opens the document again. It is listed under "Activated, waiting to be issued", or he can enter the number.
+2. The CP enters his CP number, optionally chooses what held it up, and presses **Complete**.
+3. The AP enters his PIN and presses **Agree**. **The clock stops.**
+
+If the AP issues the document straight away, the CP activates it and completes it one after the other.
+
+The CP starts the clock himself when he arrives, so the AP cannot start it late. The clock only stops when the CP completes and the AP agrees, so neither can stop it alone. The CP number must match the number registered against the request, and every time is taken from Google's clock.
+
+**Results:** the Results tab shows the median, average and longest wait, person-hours lost, estimated cost, what held it up, office against on site, and document type. **Copy as CSV** copies every issued record. The Google Sheet holds the full record at all times.
 
 ## Notes
 
 - No names are recorded, only CP and AP numbers.
-- If an AP forgets their PIN, the office sets a new one under **AP PINs**.
+- If an AP forgets his PIN, the office sets a new one under **AP PINs**. Setting a new PIN signs him out of his phone.
 - To change the office passcode, edit `OFFICE_PASSCODE` in Script Properties. There is no need to redeploy.
 - The page checks for new records every 20 seconds.
